@@ -57,6 +57,16 @@
     #define CELLULAR_BG96_DIRECT_PUSH_SOCKET_BUFFER_SIZE    ( 2048UL )
 #endif /* CELLULAR_BG96_DIRECT_PUSH_SOCKET_BUFFER_SIZE. */
 
+/* Enable/disable band configuration for BG96 modules */
+#ifndef CELLULAR_BG96_ENABLE_BAND_CONFIGURATION
+    #define CELLULAR_BG96_ENABLE_BAND_CONFIGURATION    ( 1 )
+#endif
+
+/* Default band configuration if enabled */
+#ifndef CELLULAR_BG96_BAND_CONFIGURATION
+    #define CELLULAR_BG96_BAND_CONFIGURATION "f,400a0e189f,a0e189f"
+#endif
+
 /*-----------------------------------------------------------*/
 
 /**
