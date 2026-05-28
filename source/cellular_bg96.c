@@ -261,12 +261,14 @@ CellularError_t Cellular_ModuleEnableUE( CellularContext_t * pContext )
             cellularStatus = sendAtCommandWithRetryTimeout( pContext, &atReqGetNoResult );
         }
 
-        if( cellularStatus == CELLULAR_SUCCESS )
-        {
-            /* Configure Band configuration to all bands. */
-            atReqGetNoResult.pAtCmd = "AT+QCFG=\"band\",f,400a0e189f,a0e189f";
-            cellularStatus = sendAtCommandWithRetryTimeout( pContext, &atReqGetNoResult );
-        }
+        #if ( CELLULAR_BG96_ENABLE_BAND_CONFIGURATION == 1 )
+            if( cellularStatus == CELLULAR_SUCCESS )
+            {
+                /* Configure Band configuration to all bands. */
+                atReqGetNoResult.pAtCmd = "AT+QCFG=\"band\","CELLULAR_BG96_BAND_CONFIGURATION;
+                cellularStatus = sendAtCommandWithRetryTimeout( pContext, &atReqGetNoResult );
+            }
+        #endif
 
         if( cellularStatus == CELLULAR_SUCCESS )
         {
