@@ -270,18 +270,24 @@ CellularError_t Cellular_ModuleEnableUE( CellularContext_t * pContext )
             }
         #endif
 
+        /* TEMP: our modem is an EG916, not a BG96 - these three AT+QCFG
+         * sub-params (nwscanmode/iotopmode/nwscanseq) are BG96-specific and
+         * the EG916 rejects them outright (+CME ERROR: 50). Don't let a
+         * rejected tuning command block AT+CFUN=1 below, which is the one
+         * that actually matters. Revisit with EG916's own AT syntax for
+         * these once we have its AT command manual. */
         if( cellularStatus == CELLULAR_SUCCESS )
         {
             /* Configure RAT(s) to be Searched to Automatic. */
             atReqGetNoResult.pAtCmd = "AT+QCFG=\"nwscanmode\",0,1";
-            cellularStatus = sendAtCommandWithRetryTimeout( pContext, &atReqGetNoResult );
+            ( void ) sendAtCommandWithRetryTimeout( pContext, &atReqGetNoResult );
         }
 
         if( cellularStatus == CELLULAR_SUCCESS )
         {
             /* Configure Network Category to be Searched under LTE RAT to LTE Cat M1 and Cat NB1. */
             atReqGetNoResult.pAtCmd = "AT+QCFG=\"iotopmode\",2,1";
-            cellularStatus = sendAtCommandWithRetryTimeout( pContext, &atReqGetNoResult );
+            ( void ) sendAtCommandWithRetryTimeout( pContext, &atReqGetNoResult );
         }
 
         if( cellularStatus == CELLULAR_SUCCESS )
@@ -301,7 +307,7 @@ CellularError_t Cellular_ModuleEnableUE( CellularContext_t * pContext )
 
             strcat( ratSelectCmd, ",1" ); /* Take effect immediately. */
             atReqGetNoResult.pAtCmd = ratSelectCmd;
-            cellularStatus = sendAtCommandWithRetryTimeout( pContext, &atReqGetNoResult );
+            ( void ) sendAtCommandWithRetryTimeout( pContext, &atReqGetNoResult );
         }
 
         if( cellularStatus == CELLULAR_SUCCESS )

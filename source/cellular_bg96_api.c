@@ -254,6 +254,13 @@ static qcsqServiceMode_t _parseQcsqServiceMode( char * pSysmode )
     {
         eQcsqSysmode = QCSQ_SYSMODE_CAT_NB1;
     }
+    else if( strcmp( pSysmode, "LTE" ) == 0 )
+    {
+        /* TEMP: EG916 (not a BG96) reports plain "LTE" here rather than
+         * BG96's CAT-M1/CAT-NB1 split - same 4-value rssi,rsrp,sinr,rsrq
+         * payload shape either way, so treat it the same as CAT-M1. */
+        eQcsqSysmode = QCSQ_SYSMODE_CAT_M1;
+    }
     else
     {
         eQcsqSysmode = QCSQ_SYSMODE_INVALID;
