@@ -1272,7 +1272,7 @@ static CellularError_t buildSocketConnect( CellularSocketHandle_t socketHandle,
         }
         else
         {
-            ( void ) strcpy( protocol, "UDP SERVICE" );
+            ( void ) strcpy( protocol, "UDP" );
         }
 
         /* Form the AT command. */
