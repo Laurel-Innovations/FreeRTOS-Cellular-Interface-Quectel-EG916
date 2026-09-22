@@ -209,6 +209,10 @@ static CellularPktStatus_t _Cellular_RecvFuncGetPsmSettings( CellularContext_t *
                                                              const CellularATCommandResponse_t * pAtResp,
                                                              void * pData,
                                                              uint16_t dataLen );
+static CellularPktStatus_t _Cellular_RecvFuncGetOperatorName( CellularContext_t * pContext,
+                                                              const CellularATCommandResponse_t * pAtResp,
+                                                              void * pData,
+                                                              uint16_t dataLen );
 static CellularPktStatus_t socketRecvDataPrefix( void * pCallbackContext,
                                                  char * pLine,
                                                  uint32_t lineLength,
@@ -2591,6 +2595,123 @@ CellularError_t Cellular_GetSignalInfo( CellularHandle_t cellularHandle,
         }
 
         cellularStatus = _Cellular_TranslatePktStatus( pktStatus );
+    }
+
+    return cellularStatus;
+}
+
+/*-----------------------------------------------------------*/
+
+/* Parses "+COPS: <mode>,<format>,"<operator name>"[,<AcT>]" - see
+ * Cellular_GetServiceStatus() below for why this exists. pData/dataLen here
+ * are the CellularServiceStatus_t the caller passed to Cellular_GetServiceStatus(),
+ * not a freshly allocated struct - this fills in just its operatorName /
+ * operatorNameFormat fields on top of whatever Cellular_CommonGetServiceStatus()
+ * already populated. */
+static CellularPktStatus_t _Cellular_RecvFuncGetOperatorName( CellularContext_t * pContext,
+                                                               const CellularATCommandResponse_t * pAtResp,
+                                                               void * pData,
+                                                               uint16_t dataLen )
+{
+    ( void ) pContext;
+
+    CellularServiceStatus_t * pServiceStatus = ( CellularServiceStatus_t * ) pData;
+    CellularPktStatus_t pktStatus = CELLULAR_PKT_STATUS_OK;
+    char * pCopsResponse = NULL;
+    char * pMode = NULL;
+    char * pFormat = NULL;
+    char * pName = NULL;
+
+    if( ( pServiceStatus == NULL ) || ( dataLen != sizeof( CellularServiceStatus_t ) ) )
+    {
+        LogError( ( "_Cellular_RecvFuncGetOperatorName: pData is invalid or dataLen is wrong" ) );
+        pktStatus = CELLULAR_PKT_STATUS_FAILURE;
+    }
+    else if( ( pAtResp == NULL ) || ( pAtResp->pItm == NULL ) || ( pAtResp->pItm->pLine == NULL ) )
+    {
+        LogError( ( "_Cellular_RecvFuncGetOperatorName: Response is invalid" ) );
+        pktStatus = CELLULAR_PKT_STATUS_FAILURE;
+    }
+    else
+    {
+        pCopsResponse = pAtResp->pItm->pLine;
+
+        if( ( Cellular_ATRemovePrefix( &pCopsResponse ) != CELLULAR_AT_SUCCESS ) ||
+            ( Cellular_ATRemoveAllDoubleQuote( pCopsResponse ) != CELLULAR_AT_SUCCESS ) )
+        {
+            pktStatus = CELLULAR_PKT_STATUS_FAILURE;
+        }
+        /* "+COPS: 0" with no further fields - not registered, nothing to
+         * parse. Not an error: leave pServiceStatus->operatorName as
+         * Cellular_CommonGetServiceStatus() already left it (empty). */
+        else if( ( Cellular_ATGetNextTok( &pCopsResponse, &pMode ) == CELLULAR_AT_SUCCESS ) &&
+                ( Cellular_ATGetNextTok( &pCopsResponse, &pFormat ) == CELLULAR_AT_SUCCESS ) &&
+                ( Cellular_ATGetNextTok( &pCopsResponse, &pName ) == CELLULAR_AT_SUCCESS ) )
+        {
+            ( void ) strncpy( pServiceStatus->operatorName, pName, CELLULAR_NETWORK_NAME_MAX_SIZE );
+            pServiceStatus->operatorName[ CELLULAR_NETWORK_NAME_MAX_SIZE ] = '\0';
+            pServiceStatus->operatorNameFormat = OPERATOR_NAME_FORMAT_LONG;
+        }
+    }
+
+    return pktStatus;
+}
+
+/*-----------------------------------------------------------*/
+
+/* Overrides the wrapper's former plain passthrough to Cellular_CommonGetServiceStatus().
+ * That common implementation always leaves pServiceStatus->operatorName empty
+ * on this modem: its own atcmdUpdateMccMnc() (cellular_3gpp_api.c) issues
+ * "AT+COPS=3,2" to force numeric operator format before its "AT+COPS?" query,
+ * purely to get mcc/mnc - the numeric branch of its response parser
+ * (_parseCopsNetworkNameToken()) fills plmnInfo.mcc/mnc instead of
+ * operatorName, by design, not a bug in that call. Get the correct
+ * registration/RAT/plmn data from the common call first (as before), then
+ * switch the format back to long alphanumeric and re-query AT+COPS? here to
+ * fill in the human-readable name the common call can never provide. */
+CellularError_t Cellular_GetServiceStatus( CellularHandle_t cellularHandle,
+                                           CellularServiceStatus_t * pServiceStatus )
+{
+    CellularContext_t * pContext = ( CellularContext_t * ) cellularHandle;
+    CellularError_t cellularStatus = CELLULAR_SUCCESS;
+    CellularPktStatus_t pktStatus = CELLULAR_PKT_STATUS_OK;
+    CellularAtReq_t atReqSetAlphaFormat =
+    {
+        "AT+COPS=3,0",
+        CELLULAR_AT_NO_RESULT,
+        NULL,
+        NULL,
+        NULL,
+        0,
+    };
+    CellularAtReq_t atReqGetOperatorName =
+    {
+        "AT+COPS?",
+        CELLULAR_AT_WITH_PREFIX,
+        "+COPS",
+        _Cellular_RecvFuncGetOperatorName,
+        pServiceStatus,
+        sizeof( CellularServiceStatus_t ),
+    };
+
+    cellularStatus = Cellular_CommonGetServiceStatus( cellularHandle, pServiceStatus );
+
+    if( cellularStatus == CELLULAR_SUCCESS )
+    {
+        pktStatus = _Cellular_AtcmdRequestWithCallback( pContext, atReqSetAlphaFormat );
+
+        if( pktStatus == CELLULAR_PKT_STATUS_OK )
+        {
+            pktStatus = _Cellular_AtcmdRequestWithCallback( pContext, atReqGetOperatorName );
+        }
+
+        if( pktStatus != CELLULAR_PKT_STATUS_OK )
+        {
+            /* Not fatal - registration/RAT/plmn info from the common call
+             * above is still valid, just without a human-readable operator
+             * name (pServiceStatus->operatorName stays empty). */
+            LogError( ( "Cellular_GetServiceStatus: failed to query operator name, pktStatus %d", pktStatus ) );
+        }
     }
 
     return cellularStatus;

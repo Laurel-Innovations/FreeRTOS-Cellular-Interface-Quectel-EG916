@@ -217,12 +217,10 @@ CellularError_t Cellular_GetNetworkTime( CellularHandle_t cellularHandle,
     return Cellular_CommonGetNetworkTime( cellularHandle, pNetworkTime );
 }
 
-/*-----------------------------------------------------------*/
-
-CellularError_t Cellular_GetServiceStatus( CellularHandle_t cellularHandle,
-                                           CellularServiceStatus_t * pServiceStatus )
-{
-    return Cellular_CommonGetServiceStatus( cellularHandle, pServiceStatus );
-}
+/* Cellular_GetServiceStatus() is no longer a plain passthrough to
+ * Cellular_CommonGetServiceStatus() - see its real definition in
+ * cellular_bg96_api.c (next to this modem's other Cellular_Get*()
+ * overrides) for why: the common implementation alone can't fill in
+ * CellularServiceStatus_t::operatorName on this modem. */
 
 /*-----------------------------------------------------------*/
